@@ -7,16 +7,23 @@ import com.google.gson.reflect.TypeToken
 class PlaybackProgressStore(context: Context) {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
+    private val lock = Any()
+    @Volatile
+    private var cachedHistory: MutableList<ContinueWatchingItem>? = null
 
     fun saveProgress(item: ContinueWatchingItem) {
         if (!item.hasProgress) return
 
-        val historyList = getAllHistory().toMutableList()
-        // Remove existing item if same channelId or same title
-        historyList.removeAll { it.channelId == item.channelId || (it.categoryId == item.categoryId && it.title == item.title) }
-        historyList.add(0, item)
-        // Keep max 50 items
-        val trimmedList = if (historyList.size > 50) historyList.subList(0, 50) else historyList
+        val trimmedList: List<ContinueWatchingItem>
+        synchronized(lock) {
+            val historyList = getOrLoadHistoryLocked()
+            // Remove existing item if same channelId or same title
+            historyList.removeAll { it.channelId == item.channelId || (it.categoryId == item.categoryId && it.title == item.title) }
+            historyList.add(0, item)
+            // Keep max 50 items
+            trimmedList = if (historyList.size > 50) historyList.subList(0, 50).toList() else historyList.toList()
+            cachedHistory = trimmedList.toMutableList()
+        }
         val json = gson.toJson(trimmedList)
 
         preferences.edit()
@@ -54,28 +61,56 @@ class PlaybackProgressStore(context: Context) {
     }
 
     fun getAllHistory(): List<ContinueWatchingItem> {
-        val json = preferences.getString(KEY_HISTORY_JSON, null) ?: return emptyList()
-        return try {
-            val type = object : TypeToken<List<ContinueWatchingItem>>() {}.type
-            gson.fromJson<List<ContinueWatchingItem>>(json, type) ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
+        synchronized(lock) {
+            return getOrLoadHistoryLocked().toList()
         }
     }
 
+    private fun getOrLoadHistoryLocked(): MutableList<ContinueWatchingItem> {
+        cachedHistory?.let { return it }
+        val json = preferences.getString(KEY_HISTORY_JSON, null)
+        val list = if (json.isNullOrBlank()) {
+            mutableListOf()
+        } else {
+            try {
+                val type = object : TypeToken<List<ContinueWatchingItem>>() {}.type
+                val parsed = gson.fromJson<List<ContinueWatchingItem>>(json, type)
+                parsed?.toMutableList() ?: mutableListOf()
+            } catch (e: Exception) {
+                mutableListOf()
+            }
+        }
+        cachedHistory = list
+        return list
+    }
+
     fun removeHistoryItem(channelId: Int) {
-        val list = getAllHistory().filter { it.channelId != channelId }
+        val trimmedList: List<ContinueWatchingItem>
+        synchronized(lock) {
+            val list = getOrLoadHistoryLocked()
+            list.removeAll { it.channelId == channelId }
+            trimmedList = list.toList()
+            cachedHistory = list
+        }
         preferences.edit()
-            .putString(KEY_HISTORY_JSON, gson.toJson(list))
+            .putString(KEY_HISTORY_JSON, gson.toJson(trimmedList))
             .remove(positionKey(channelId))
             .apply()
     }
 
     fun clearHistory() {
+        synchronized(lock) {
+            cachedHistory?.clear()
+        }
         preferences.edit().clear().apply()
     }
 
     fun getPosition(channelId: Int): Long {
+        synchronized(lock) {
+            cachedHistory?.firstOrNull { it.channelId == channelId }?.let {
+                return it.positionMs
+            }
+        }
         return preferences.getLong(positionKey(channelId), 0L)
     }
 

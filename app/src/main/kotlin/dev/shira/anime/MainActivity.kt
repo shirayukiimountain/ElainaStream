@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,7 @@ import dev.shira.anime.ui.player.PlayerScreen
 import dev.shira.anime.ui.player.VideoQuality
 import dev.shira.anime.ui.settings.SettingsScreen
 import dev.shira.anime.ui.theme.AnimeTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -89,6 +91,7 @@ private fun AnimeApp(
     genreViewModel: GenreViewModel
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val playbackProgressStore = remember(context) {
         PlaybackProgressStore(context.applicationContext)
     }
@@ -124,6 +127,7 @@ private fun AnimeApp(
     var playerCategoryId by remember { mutableStateOf(0) }
     var playerInitialPositionMs by remember { mutableStateOf(0L) }
     var playerQualities by remember { mutableStateOf(emptyList<VideoQuality>()) }
+    var playerEpisodes by remember { mutableStateOf(emptyList<AnimeEpisode>()) }
     var continueWatchingItem by remember {
         mutableStateOf(playbackProgressStore.getLastContinueWatching())
     }
@@ -134,21 +138,33 @@ private fun AnimeApp(
 
     LaunchedEffect(detailState, autoPlayEpisode, currentScreen) {
         if (autoPlayEpisode && currentScreen == AnimeScreen.Detail) {
-            val detail = (detailState as? UiState.Success)?.data
-            if (detail != null) {
-                val qualities = detail.availableQualities
-                val bestUrl = detail.bestVideoUrl
-                if (bestUrl.isNotBlank() && qualities.isNotEmpty()) {
-                    autoPlayEpisode = false
-                    playerUrl = bestUrl
-                    playerTitle = detail.episodeTitle
-                    playerImageUrl = detail.imageUrl
-                    playerChannelId = detail.selectedChannelId
-                    playerCategoryId = detail.category?.id ?: selectedPost?.categoryId ?: 0
-                    playerInitialPositionMs = playbackProgressStore.getPosition(playerChannelId)
-                    playerQualities = qualities
-                    navigateTo(AnimeScreen.Player)
+            when (val state = detailState) {
+                is UiState.Success -> {
+                    val detail = state.data
+                    if (detail.episodes.isNotEmpty()) {
+                        playerEpisodes = detail.episodes
+                    }
+                    val qualities = detail.availableQualities
+                    val bestUrl = detail.bestVideoUrl
+                    if (bestUrl.isNotBlank() && qualities.isNotEmpty()) {
+                        autoPlayEpisode = false
+                        playerUrl = bestUrl
+                        playerTitle = detail.episodeTitle
+                        playerImageUrl = detail.imageUrl
+                        playerChannelId = detail.selectedChannelId
+                        playerCategoryId = detail.category?.id ?: selectedPost?.categoryId ?: 0
+                        playerInitialPositionMs = playbackProgressStore.getPosition(playerChannelId)
+                        playerQualities = qualities
+                        navigateTo(AnimeScreen.Player)
+                    } else {
+                        autoPlayEpisode = false
+                        Toast.makeText(context, "URL video belum tersedia", Toast.LENGTH_SHORT).show()
+                    }
                 }
+                is UiState.Error -> {
+                    autoPlayEpisode = false
+                }
+                UiState.Loading -> Unit
             }
         }
     }
@@ -333,6 +349,7 @@ private fun AnimeApp(
                 onEpisodeClick = { episode: AnimeEpisode ->
                     val post = selectedPost
                     val currentDetail = (detailState as? UiState.Success)?.data
+                    currentDetail?.episodes?.let { if (it.isNotEmpty()) playerEpisodes = it }
                     if (currentDetail != null && currentDetail.selectedChannelId == episode.channelId && currentDetail.bestVideoUrl.isNotBlank() && currentDetail.availableQualities.isNotEmpty()) {
                         playerUrl = currentDetail.bestVideoUrl
                         playerTitle = currentDetail.episodeTitle
@@ -360,8 +377,21 @@ private fun AnimeApp(
                     val qualities = detail?.availableQualities.orEmpty()
 
                     if (videoUrl.isBlank() || qualities.isEmpty()) {
-                        Toast.makeText(context, "URL video belum tersedia", Toast.LENGTH_SHORT).show()
+                        val firstEpisode = detail?.episodes?.firstOrNull()
+                        if (firstEpisode != null) {
+                            detail.episodes.let { if (it.isNotEmpty()) playerEpisodes = it }
+                            autoPlayEpisode = true
+                            detailViewModel.load(
+                                channelId = firstEpisode.channelId,
+                                categoryId = firstEpisode.categoryId,
+                                fallbackTitle = firstEpisode.title.ifBlank { selectedPost?.animeTitle.orEmpty() },
+                                fallbackImageUrl = selectedPost?.imageUrl.orEmpty()
+                            )
+                        } else {
+                            Toast.makeText(context, "URL video belum tersedia", Toast.LENGTH_SHORT).show()
+                        }
                     } else {
+                        detail?.episodes?.let { if (it.isNotEmpty()) playerEpisodes = it }
                         playerUrl = videoUrl
                         playerTitle = detail?.episodeTitle ?: selectedPost?.title.orEmpty()
                         playerImageUrl = detail?.imageUrl ?: selectedPost?.imageUrl.orEmpty()
@@ -376,10 +406,12 @@ private fun AnimeApp(
 
             AnimeScreen.Player -> {
                 PlayerWindowEffect()
-                val currentEpisodes = (detailState as? UiState.Success)?.data?.episodes.orEmpty()
                 LaunchedEffect(detailState) {
                     val detail = (detailState as? UiState.Success)?.data
                     if (detail != null) {
+                        if (detail.episodes.isNotEmpty()) {
+                            playerEpisodes = detail.episodes
+                        }
                         val qualities = detail.availableQualities
                         val bestUrl = detail.bestVideoUrl
                         if (bestUrl.isNotBlank() && qualities.isNotEmpty() && detail.selectedChannelId != playerChannelId) {
@@ -398,7 +430,7 @@ private fun AnimeApp(
                     initialPositionMs = playerInitialPositionMs,
                     qualities = playerQualities,
                     title = playerTitle,
-                    episodes = currentEpisodes,
+                    episodes = playerEpisodes.ifEmpty { (detailState as? UiState.Success)?.data?.episodes.orEmpty() },
                     currentChannelId = playerChannelId,
                     onSelectEpisode = { episode ->
                         val post = selectedPost
@@ -420,12 +452,16 @@ private fun AnimeApp(
                                 durationMs = durationMs,
                                 updatedAtMs = System.currentTimeMillis()
                             )
-                            playbackProgressStore.saveProgress(item)
-                            continueWatchingItem = playbackProgressStore.getLastContinueWatching()
-                            historyList = playbackProgressStore.getAllHistory()
+                            coroutineScope.launch(Dispatchers.IO) {
+                                playbackProgressStore.saveProgress(item)
+                            }
                         }
                     },
-                    onBack = { navigateBack() }
+                    onBack = {
+                        continueWatchingItem = playbackProgressStore.getLastContinueWatching()
+                        historyList = playbackProgressStore.getAllHistory()
+                        navigateBack()
+                    }
                 )
             }
         }

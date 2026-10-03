@@ -125,6 +125,7 @@ enum class PlayerAspectRatio(val title: String) {
 }
 
 private const val VIDEO_USER_AGENT = "Player Anime v26.9.5"
+private const val PROGRESS_SAVE_INTERVAL_MS = 15_000L
 private val SPEED_OPTIONS = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
 
 @Composable
@@ -152,10 +153,15 @@ fun PlayerScreen(
     }
     val videoUrl = selectedQuality.url
 
-    var resumePositionMs by remember { mutableStateOf(0L) }
+    var resumePositionMs by remember(currentChannelId) { mutableStateOf(0L) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var bufferedPositionMs by remember { mutableLongStateOf(0L) }
+    var lastProgressSaveTimeMs by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(currentChannelId) {
+        resumePositionMs = 0L
+    }
 
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember(videoUrl) { mutableStateOf(true) }
@@ -202,6 +208,7 @@ fun PlayerScreen(
                 setPlaybackSpeed(playbackSpeed)
                 playWhenReady = true
                 prepare()
+                resumePositionMs = 0L
             }
     }
 
@@ -221,7 +228,7 @@ fun PlayerScreen(
         }
     }
 
-    // Progress update loop
+    // Progress update loop (throttled to at most once per 15s)
     LaunchedEffect(player, isPlaying) {
         while (true) {
             if (!isScrubbing) {
@@ -229,7 +236,11 @@ fun PlayerScreen(
                 durationMs = player.duration.coerceAtLeast(0L)
                 bufferedPositionMs = player.bufferedPosition.coerceAtLeast(0L)
                 val dur = durationMs.takeIf { it > 0L } ?: 0L
-                onProgressChanged(currentPositionMs, dur)
+                val now = System.currentTimeMillis()
+                if (isPlaying && now - lastProgressSaveTimeMs >= PROGRESS_SAVE_INTERVAL_MS) {
+                    lastProgressSaveTimeMs = now
+                    onProgressChanged(currentPositionMs, dur)
+                }
             }
             delay(300)
         }
@@ -255,7 +266,9 @@ fun PlayerScreen(
 
         fun notifyProgress() {
             val dur = player.duration.takeIf { it > 0L } ?: 0L
-            onProgressChanged(player.currentPosition, dur)
+            val pos = player.currentPosition.coerceAtLeast(0L)
+            lastProgressSaveTimeMs = System.currentTimeMillis()
+            onProgressChanged(pos, dur)
         }
 
         val lifecycleObserver = LifecycleEventObserver { _, event ->
@@ -602,6 +615,7 @@ fun PlayerScreen(
                 episodes = episodes,
                 currentChannelId = currentChannelId,
                 onSelect = { episode ->
+                    resumePositionMs = 0L
                     onSelectEpisode(episode)
                     showEpisodeDialog = false
                     lastInteractionTime = System.currentTimeMillis()
