@@ -152,7 +152,9 @@ fun PlayerScreen(
     }
     val videoUrl = selectedQuality.url
 
-    var resumePositionMs by remember { mutableStateOf(0L) }
+    // Direset tiap ganti episode agar posisi resume basi tidak bocor ke episode lain.
+    // Sengaja TIDAK di-key ke videoUrl supaya nilainya tetap bertahan saat ganti kualitas.
+    var resumePositionMs by remember(initialVideoUrl, currentChannelId) { mutableStateOf(0L) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var bufferedPositionMs by remember { mutableLongStateOf(0L) }

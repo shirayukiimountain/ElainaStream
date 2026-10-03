@@ -15,9 +15,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +55,13 @@ import dev.shira.anime.ui.player.PlayerScreen
 import dev.shira.anime.ui.player.VideoQuality
 import dev.shira.anime.ui.settings.SettingsScreen
 import dev.shira.anime.ui.theme.AnimeTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+// Progress video disimpan maksimal tiap 15 detik (lihat onProgressChanged di bawah).
+// Tanpa throttle, save tiap 300ms di main thread bikin UI jank / ANR.
+private const val PROGRESS_SAVE_THROTTLE_MS = 15_000L
 
 class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels { HomeViewModel.Factory() }
@@ -124,6 +132,10 @@ private fun AnimeApp(
     var playerCategoryId by remember { mutableStateOf(0) }
     var playerInitialPositionMs by remember { mutableStateOf(0L) }
     var playerQualities by remember { mutableStateOf(emptyList<VideoQuality>()) }
+    // Scope untuk kerja background (I/O) dari dalam composable
+    val appScope = rememberCoroutineScope()
+    // Timestamp save progress terakhir — untuk throttle
+    var lastProgressSaveAt by remember { mutableLongStateOf(0L) }
     var continueWatchingItem by remember {
         mutableStateOf(playbackProgressStore.getLastContinueWatching())
     }
@@ -411,18 +423,31 @@ private fun AnimeApp(
                     },
                     onProgressChanged = { positionMs, durationMs ->
                         if (playerChannelId != 0 && playerCategoryId != 0) {
-                            val item = ContinueWatchingItem(
-                                channelId = playerChannelId,
-                                categoryId = playerCategoryId,
-                                title = playerTitle,
-                                imageUrl = playerImageUrl,
-                                positionMs = positionMs,
-                                durationMs = durationMs,
-                                updatedAtMs = System.currentTimeMillis()
-                            )
-                            playbackProgressStore.saveProgress(item)
-                            continueWatchingItem = playbackProgressStore.getLastContinueWatching()
-                            historyList = playbackProgressStore.getAllHistory()
+                            val now = System.currentTimeMillis()
+                            // Throttle: jangan spam I/O tiap 300ms
+                            if (now - lastProgressSaveAt >= PROGRESS_SAVE_THROTTLE_MS) {
+                                lastProgressSaveAt = now
+                                val item = ContinueWatchingItem(
+                                    channelId = playerChannelId,
+                                    categoryId = playerCategoryId,
+                                    title = playerTitle,
+                                    imageUrl = playerImageUrl,
+                                    positionMs = positionMs,
+                                    durationMs = durationMs,
+                                    updatedAtMs = now
+                                )
+                                // I/O (SharedPreferences + Gson) di background thread,
+                                // update state UI kembali di main thread
+                                appScope.launch(Dispatchers.IO) {
+                                    playbackProgressStore.saveProgress(item)
+                                    val latest = playbackProgressStore.getLastContinueWatching()
+                                    val history = playbackProgressStore.getAllHistory()
+                                    withContext(Dispatchers.Main) {
+                                        continueWatchingItem = latest
+                                        historyList = history
+                                    }
+                                }
+                            }
                         }
                     },
                     onBack = { navigateBack() }
