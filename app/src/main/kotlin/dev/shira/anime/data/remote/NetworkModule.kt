@@ -24,12 +24,25 @@ object NetworkModule {
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
+            var request = chain.request()
+            val targetHost = AppConfigManager.getBaseHost()
+            if (!targetHost.isNullOrBlank() && request.url.host != targetHost) {
+                val newUrl = request.url.newBuilder()
+                    .scheme(AppConfigManager.getBaseScheme())
+                    .host(targetHost)
+                    .apply {
+                        val port = AppConfigManager.getBasePort()
+                        if (port != -1) port(port)
+                    }
+                    .build()
+                request = request.newBuilder().url(newUrl).build()
+            }
+            val modifiedRequest = request.newBuilder()
                 .header("Cache-Control", "max-age=0")
                 .header("Data-Agent", ANIMEX_DATA_AGENT)
                 .header("User-Agent", ANIMEX_USER_AGENT)
                 .build()
-            chain.proceed(request)
+            chain.proceed(modifiedRequest)
         }
         .addInterceptor(loggingInterceptor)
         .build()

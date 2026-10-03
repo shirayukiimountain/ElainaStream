@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.shira.anime.data.repository.AnimeRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,7 @@ class SearchViewModel(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var currentPage = FIRST_PAGE
+    private var searchJob: Job? = null
 
     fun onQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
@@ -24,10 +26,12 @@ class SearchViewModel(
     fun search() {
         val query = _uiState.value.query.trim()
         if (query.isEmpty()) {
+            searchJob?.cancel()
             _uiState.value = SearchUiState(query = _uiState.value.query)
             return
         }
 
+        searchJob?.cancel()
         currentPage = FIRST_PAGE
         _uiState.value = _uiState.value.copy(
             isSearching = true,
@@ -39,7 +43,7 @@ class SearchViewModel(
             canLoadMore = false
         )
 
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
             runCatching {
                 repository.searchAnime(query = query, page = FIRST_PAGE, count = PAGE_SIZE)
             }.onSuccess { results ->
@@ -68,7 +72,8 @@ class SearchViewModel(
         )
 
         val nextPage = currentPage + 1
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             runCatching {
                 repository.searchAnime(query = query, page = nextPage, count = PAGE_SIZE)
             }.onSuccess { newResults ->

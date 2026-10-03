@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.shira.anime.data.repository.AnimeRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,16 +17,18 @@ class HomeViewModel(
     val homeState: StateFlow<HomeUiState> = _homeState.asStateFlow()
 
     private var currentPage = FIRST_PAGE
+    private var loadJob: Job? = null
 
     init {
         refresh()
     }
 
     fun refresh() {
+        loadJob?.cancel()
         currentPage = FIRST_PAGE
         _homeState.value = HomeUiState(isInitialLoading = true)
 
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             runCatching {
                 repository.getLatestPosts(page = FIRST_PAGE, count = PAGE_SIZE)
             }.onSuccess { posts ->
@@ -53,7 +56,8 @@ class HomeViewModel(
         )
 
         val nextPage = currentPage + 1
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             runCatching {
                 repository.getLatestPosts(page = nextPage, count = PAGE_SIZE)
             }.onSuccess { newPosts ->

@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         SourcePreferences.init(applicationContext)
+        AppConfigManager.init(applicationContext)
         lifecycleScope.launch {
             AppConfigManager.sync(applicationContext)
         }
@@ -203,6 +204,11 @@ private fun AnimeApp(
                 onHistoryClick = { navigateTo(AnimeScreen.History) },
                 onSettingsClick = { navigateTo(AnimeScreen.Settings) },
                 onContinueWatchingClick = { item ->
+                    if (SourcePreferences.currentSource.value != item.sourceType) {
+                        SourcePreferences.setSource(context, item.sourceType)
+                        homeViewModel.refresh()
+                        genreViewModel.loadGenres()
+                    }
                     selectedPost = AnimePost(
                         channelId = item.channelId,
                         categoryId = item.categoryId,
@@ -257,6 +263,11 @@ private fun AnimeApp(
             AnimeScreen.History -> HistoryScreen(
                 historyList = historyList,
                 onItemClick = { item ->
+                    if (SourcePreferences.currentSource.value != item.sourceType) {
+                        SourcePreferences.setSource(context, item.sourceType)
+                        homeViewModel.refresh()
+                        genreViewModel.loadGenres()
+                    }
                     selectedPost = AnimePost(
                         channelId = item.channelId,
                         categoryId = item.categoryId,
@@ -450,7 +461,8 @@ private fun AnimeApp(
                                 imageUrl = playerImageUrl,
                                 positionMs = positionMs,
                                 durationMs = durationMs,
-                                updatedAtMs = System.currentTimeMillis()
+                                updatedAtMs = System.currentTimeMillis(),
+                                sourceType = currentSource
                             )
                             coroutineScope.launch(Dispatchers.IO) {
                                 playbackProgressStore.saveProgress(item)

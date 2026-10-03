@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.shira.anime.data.repository.AnimeRepository
 import dev.shira.anime.domain.model.Genre
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,17 +17,21 @@ class GenreViewModel(
     private val _uiState = MutableStateFlow(GenreUiState())
     val uiState: StateFlow<GenreUiState> = _uiState.asStateFlow()
 
+    private var genresJob: Job? = null
+    private var resultsJob: Job? = null
+
     init {
         loadGenres()
     }
 
     fun loadGenres() {
+        genresJob?.cancel()
         _uiState.value = _uiState.value.copy(
             isLoadingGenres = true,
             errorMessage = null
         )
 
-        viewModelScope.launch {
+        genresJob = viewModelScope.launch {
             runCatching {
                 repository.getGenres()
             }.onSuccess { genres ->
@@ -44,6 +49,7 @@ class GenreViewModel(
     }
 
     fun selectGenre(genre: Genre) {
+        resultsJob?.cancel()
         _uiState.value = _uiState.value.copy(
             selectedGenre = genre,
             results = emptyList(),
@@ -51,7 +57,7 @@ class GenreViewModel(
             errorMessage = null
         )
 
-        viewModelScope.launch {
+        resultsJob = viewModelScope.launch {
             runCatching {
                 repository.getAnimeByGenre(genre.name)
             }.onSuccess { results ->

@@ -3,6 +3,7 @@ package dev.shira.anime.data.local
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import dev.shira.anime.domain.model.AnimeSourceType
 
 class PlaybackProgressStore(context: Context) {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -35,6 +36,7 @@ class PlaybackProgressStore(context: Context) {
             .putLong(KEY_POSITION_MS, item.positionMs)
             .putLong(KEY_DURATION_MS, item.durationMs)
             .putLong(KEY_UPDATED_AT_MS, item.updatedAtMs)
+            .putString(KEY_SOURCE_TYPE, item.sourceType.id)
             .putLong(positionKey(item.channelId), item.positionMs)
             .apply()
     }
@@ -56,7 +58,8 @@ class PlaybackProgressStore(context: Context) {
             imageUrl = preferences.getString(KEY_IMAGE_URL, null).orEmpty(),
             positionMs = preferences.getLong(KEY_POSITION_MS, 0L),
             durationMs = preferences.getLong(KEY_DURATION_MS, 0L),
-            updatedAtMs = preferences.getLong(KEY_UPDATED_AT_MS, 0L)
+            updatedAtMs = preferences.getLong(KEY_UPDATED_AT_MS, 0L),
+            sourceType = AnimeSourceType.fromId(preferences.getString(KEY_SOURCE_TYPE, AnimeSourceType.ANIMEX.id))
         ).takeIf { it.hasProgress }
     }
 
@@ -126,6 +129,7 @@ class PlaybackProgressStore(context: Context) {
         const val KEY_POSITION_MS = "position_ms"
         const val KEY_DURATION_MS = "duration_ms"
         const val KEY_UPDATED_AT_MS = "updated_at_ms"
+        const val KEY_SOURCE_TYPE = "source_type"
         const val KEY_POSITION_PREFIX = "position_"
     }
 }

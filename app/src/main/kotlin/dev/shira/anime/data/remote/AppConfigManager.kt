@@ -38,6 +38,11 @@ object AppConfigManager {
         return context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    fun init(context: Context) {
+        getWhatboxAuth(context)
+        getServerUrl(context)
+    }
+
     fun getWhatboxAuth(context: Context): String {
         cachedWhatboxAuth?.let { return it }
         val saved = getPrefs(context).getString(KEY_WHATBOX_AUTH, null)
@@ -52,6 +57,39 @@ object AppConfigManager {
         val result = saved?.takeIf { it.isNotBlank() } ?: DEFAULT_SERVER_URL
         cachedServerUrl = result
         return result
+    }
+
+    fun getBaseHost(): String? {
+        cachedServerUrl?.let { url ->
+            return try {
+                java.net.URI(url).host
+            } catch (e: Exception) {
+                null
+            }
+        }
+        return null
+    }
+
+    fun getBaseScheme(): String {
+        cachedServerUrl?.let { url ->
+            return try {
+                java.net.URI(url).scheme ?: "https"
+            } catch (e: Exception) {
+                "https"
+            }
+        }
+        return "https"
+    }
+
+    fun getBasePort(): Int {
+        cachedServerUrl?.let { url ->
+            return try {
+                java.net.URI(url).port
+            } catch (e: Exception) {
+                -1
+            }
+        }
+        return -1
     }
 
     suspend fun sync(context: Context, force: Boolean = false) {

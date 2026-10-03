@@ -1,5 +1,7 @@
 package dev.shira.anime.data.local
 
+import dev.shira.anime.domain.model.AnimeSourceType
+
 data class ContinueWatchingItem(
     val channelId: Int,
     val categoryId: Int,
@@ -7,7 +9,8 @@ data class ContinueWatchingItem(
     val imageUrl: String,
     val positionMs: Long,
     val durationMs: Long,
-    val updatedAtMs: Long
+    val updatedAtMs: Long,
+    val sourceType: AnimeSourceType = AnimeSourceType.ANIMEX
 ) {
     val hasProgress: Boolean
         get() = positionMs > MINIMUM_PROGRESS_MS

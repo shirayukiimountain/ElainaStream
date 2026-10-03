@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.shira.anime.data.repository.AnimeRepository
 import dev.shira.anime.ui.common.UiState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,14 +20,17 @@ class DetailViewModel(
     private val _detailState = MutableStateFlow<UiState<AnimeDetailUiModel>>(UiState.Loading)
     val detailState: StateFlow<UiState<AnimeDetailUiModel>> = _detailState.asStateFlow()
 
+    private var loadJob: Job? = null
+
     fun load(
         channelId: Int,
         categoryId: Int,
         fallbackTitle: String,
         fallbackImageUrl: String
     ) {
+        loadJob?.cancel()
         _detailState.value = UiState.Loading
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             runCatching {
                 coroutineScope {
                     val categoryDeferred = async { runCatching { repository.getAnimeCategory(categoryId) }.getOrNull() }
