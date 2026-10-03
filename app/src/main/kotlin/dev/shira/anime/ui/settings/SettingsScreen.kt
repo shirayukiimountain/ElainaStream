@@ -138,7 +138,7 @@ fun SettingsScreen(
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        text = "SUMBER STREAMING (PROVIDER)",
+                        text = "SUMBER STREAMING",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = textSecondary,
@@ -340,7 +340,7 @@ fun SettingsScreen(
                                 color = textSecondary
                             )
                             Text(
-                                text = "v2.0 • Pro Edition",
+                                text = "2.0",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFFA5B4FC)
@@ -357,7 +357,7 @@ fun SettingsScreen(
                                 color = textSecondary
                             )
                             Text(
-                                text = "ExoPlayer Media3 (HLS/MP4)",
+                                text = "ExoPlayer Media3",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = textPrimary
