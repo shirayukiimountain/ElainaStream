@@ -1,7 +1,12 @@
 package dev.shira.anime.ui.player
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.media.AudioManager
 import android.net.Uri
+import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -15,6 +20,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,10 +49,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.automirrored.outlined.VolumeDown
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.AspectRatio
+import androidx.compose.material.icons.outlined.BrightnessHigh
+import androidx.compose.material.icons.outlined.BrightnessLow
+import androidx.compose.material.icons.outlined.BrightnessMedium
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.Forward10
@@ -85,6 +97,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -117,6 +130,7 @@ import dev.shira.anime.data.remote.AppConfigManager
 import dev.shira.anime.domain.model.AnimeEpisode
 import dev.shira.anime.ui.theme.VoidBlack
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 enum class PlayerAspectRatio(val title: String) {
     FIT("Pas Layar (Fit)"),
@@ -127,6 +141,25 @@ enum class PlayerAspectRatio(val title: String) {
 private const val VIDEO_USER_AGENT = "Player Anime v26.9.5"
 private const val PROGRESS_SAVE_INTERVAL_MS = 15_000L
 private val SPEED_OPTIONS = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+
+private enum class PlayerGestureType {
+    BRIGHTNESS,
+    VOLUME
+}
+
+private data class PlayerGestureHud(
+    val type: PlayerGestureType,
+    val percent: Int
+)
+
+private fun Context.findActivity(): Activity? {
+    var ctx = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
 
 @Composable
 fun PlayerScreen(
@@ -189,6 +222,39 @@ fun PlayerScreen(
     // Scrubbing state
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubPositionMs by remember { mutableLongStateOf(0L) }
+
+    // Gesture feedback state (Vertical Drag: Brightness / Volume)
+    var gestureHud by remember { mutableStateOf<PlayerGestureHud?>(null) }
+    var gestureHudTimeoutTrigger by remember { mutableLongStateOf(0L) }
+    var currentBrightness by remember { mutableFloatStateOf(0.5f) }
+    var currentVolumePercent by remember { mutableFloatStateOf(0.5f) }
+    var activeGestureType by remember { mutableStateOf<PlayerGestureType?>(null) }
+
+    LaunchedEffect(gestureHudTimeoutTrigger) {
+        if (gestureHudTimeoutTrigger > 0L && gestureHud != null) {
+            delay(1200L)
+            gestureHud = null
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val act = context.findActivity()
+        val initialBrightness = act?.window?.attributes?.screenBrightness?.let { br ->
+            if (br >= 0f) br else {
+                try {
+                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+                } catch (e: Exception) {
+                    0.5f
+                }
+            }
+        } ?: 0.5f
+        currentBrightness = initialBrightness.coerceIn(0.01f, 1.0f)
+
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+        val curVol = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
+        currentVolumePercent = if (maxVol > 0) curVol.toFloat() / maxVol.toFloat() else 0f
+    }
 
     BackHandler(onBack = onBack)
 
@@ -290,17 +356,93 @@ fun PlayerScreen(
             player.removeListener(listener)
             lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
             player.release()
+
+            val act = context.findActivity()
+            act?.let { a ->
+                val lp = a.window.attributes
+                lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                a.window.attributes = lp
+            }
         }
     }
 
     val config = LocalConfiguration.current
     val density = LocalDensity.current
     val screenWidthPx = with(density) { config.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { config.screenHeightDp.dp.toPx() }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(VoidBlack)
+            .pointerInput(isLocked, screenWidthPx, screenHeightPx) {
+                if (isLocked) return@pointerInput
+                detectVerticalDragGestures(
+                    onDragStart = { offset ->
+                        lastInteractionTime = System.currentTimeMillis()
+                        val isLeft = offset.x < screenWidthPx / 2
+                        if (isLeft) {
+                            activeGestureType = PlayerGestureType.BRIGHTNESS
+                            val act = context.findActivity()
+                            val curWinBr = act?.window?.attributes?.screenBrightness ?: -1f
+                            val baseBr = if (curWinBr >= 0f) {
+                                curWinBr
+                            } else {
+                                try {
+                                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+                                } catch (e: Exception) {
+                                    0.5f
+                                }
+                            }
+                            currentBrightness = baseBr.coerceIn(0.01f, 1.0f)
+                            val percent = (currentBrightness * 100f).roundToInt().coerceIn(1, 100)
+                            gestureHud = PlayerGestureHud(PlayerGestureType.BRIGHTNESS, percent)
+                        } else {
+                            activeGestureType = PlayerGestureType.VOLUME
+                            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                            val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+                            val curVol = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
+                            currentVolumePercent = if (maxVol > 0) curVol.toFloat() / maxVol.toFloat() else 0f
+                            val percent = (currentVolumePercent * 100f).roundToInt().coerceIn(0, 100)
+                            gestureHud = PlayerGestureHud(PlayerGestureType.VOLUME, percent)
+                        }
+                    },
+                    onDragEnd = {
+                        activeGestureType = null
+                        gestureHudTimeoutTrigger = System.currentTimeMillis()
+                    },
+                    onDragCancel = {
+                        activeGestureType = null
+                        gestureHudTimeoutTrigger = System.currentTimeMillis()
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        lastInteractionTime = System.currentTimeMillis()
+                        val delta = -dragAmount / (screenHeightPx * 0.70f)
+                        if (activeGestureType == PlayerGestureType.BRIGHTNESS) {
+                            val newBrightness = (currentBrightness + delta).coerceIn(0.01f, 1.0f)
+                            currentBrightness = newBrightness
+                            val act = context.findActivity()
+                            act?.let { a ->
+                                val lp = a.window.attributes
+                                lp.screenBrightness = newBrightness
+                                a.window.attributes = lp
+                            }
+                            val percent = (newBrightness * 100f).roundToInt().coerceIn(1, 100)
+                            gestureHud = PlayerGestureHud(PlayerGestureType.BRIGHTNESS, percent)
+                        } else if (activeGestureType == PlayerGestureType.VOLUME) {
+                            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                            val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+                            val newVolPercent = (currentVolumePercent + delta).coerceIn(0f, 1f)
+                            currentVolumePercent = newVolPercent
+                            val targetVol = (newVolPercent * maxVol).roundToInt().coerceIn(0, maxVol)
+                            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
+                            val percent = (newVolPercent * 100f).roundToInt().coerceIn(0, 100)
+                            gestureHud = PlayerGestureHud(PlayerGestureType.VOLUME, percent)
+                        }
+                    }
+                )
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
@@ -391,6 +533,23 @@ fun PlayerScreen(
                         color = Color.White
                     )
                 }
+            }
+        }
+
+        // 2b. Gesture Indicator HUD (Brightness on CenterStart, Volume on CenterEnd)
+        AnimatedVisibility(
+            visible = gestureHud != null && !isLocked,
+            enter = fadeIn(tween(150)) + scaleIn(tween(150)),
+            exit = fadeOut(tween(250)) + scaleOut(tween(250)),
+            modifier = Modifier.align(
+                if (gestureHud?.type == PlayerGestureType.VOLUME) Alignment.CenterEnd else Alignment.CenterStart
+            )
+        ) {
+            gestureHud?.let { hud ->
+                PlayerGestureIndicator(
+                    hud = hud,
+                    modifier = Modifier.padding(horizontal = 48.dp)
+                )
             }
         }
 
@@ -2002,5 +2161,82 @@ private fun formatTime(durationMs: Long): String {
         String.format("%d:%02d:%02d", hours, minutes % 60L, seconds)
     } else {
         String.format("%02d:%02d", minutes, seconds)
+    }
+}
+
+@Composable
+private fun PlayerGestureIndicator(
+    hud: PlayerGestureHud,
+    modifier: Modifier = Modifier
+) {
+    val isBrightness = hud.type == PlayerGestureType.BRIGHTNESS
+    val icon = if (isBrightness) {
+        when {
+            hud.percent > 66 -> Icons.Outlined.BrightnessHigh
+            hud.percent > 33 -> Icons.Outlined.BrightnessMedium
+            else -> Icons.Outlined.BrightnessLow
+        }
+    } else {
+        when {
+            hud.percent == 0 -> Icons.AutoMirrored.Outlined.VolumeOff
+            hud.percent < 40 -> Icons.AutoMirrored.Outlined.VolumeDown
+            else -> Icons.AutoMirrored.Outlined.VolumeUp
+        }
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Black.copy(alpha = 0.80f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+        modifier = modifier.shadow(16.dp, RoundedCornerShape(16.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 14.dp, vertical = 18.dp)
+                .width(48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isBrightness) Color(0xFFFBBF24) else Color(0xFFA5B4FC),
+                modifier = Modifier.size(24.dp)
+            )
+
+            // Vertical indicator bar
+            Box(
+                modifier = Modifier
+                    .width(6.dp)
+                    .height(90.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color.White.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((90 * (hud.percent / 100f)).dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                if (isBrightness) {
+                                    listOf(Color(0xFFFDE68A), Color(0xFFF59E0B))
+                                } else {
+                                    listOf(Color(0xFF818CF8), Color(0xFF4F46E5))
+                                }
+                            )
+                        )
+                )
+            }
+
+            Text(
+                text = "${hud.percent}%",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                fontSize = 11.sp
+            )
+        }
     }
 }
