@@ -10,7 +10,7 @@ data class ContinueWatchingItem(
     val positionMs: Long,
     val durationMs: Long,
     val updatedAtMs: Long,
-    val sourceType: AnimeSourceType = AnimeSourceType.ANIMEX
+    val sourceType: AnimeSourceType? = null
 ) {
     val hasProgress: Boolean
         get() = positionMs > MINIMUM_PROGRESS_MS

@@ -36,7 +36,7 @@ class PlaybackProgressStore(context: Context) {
             .putLong(KEY_POSITION_MS, item.positionMs)
             .putLong(KEY_DURATION_MS, item.durationMs)
             .putLong(KEY_UPDATED_AT_MS, item.updatedAtMs)
-            .putString(KEY_SOURCE_TYPE, item.sourceType.id)
+            .putString(KEY_SOURCE_TYPE, item.sourceType?.id)
             .putLong(positionKey(item.channelId), item.positionMs)
             .apply()
     }

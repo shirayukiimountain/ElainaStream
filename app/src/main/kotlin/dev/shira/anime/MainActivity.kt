@@ -204,10 +204,12 @@ private fun AnimeApp(
                 onHistoryClick = { navigateTo(AnimeScreen.History) },
                 onSettingsClick = { navigateTo(AnimeScreen.Settings) },
                 onContinueWatchingClick = { item ->
-                    if (SourcePreferences.currentSource.value != item.sourceType) {
-                        SourcePreferences.setSource(context, item.sourceType)
-                        homeViewModel.refresh()
-                        genreViewModel.loadGenres()
+                    item.sourceType?.let { src ->
+                        if (SourcePreferences.currentSource.value != src) {
+                            SourcePreferences.setSource(context, src)
+                            homeViewModel.refresh()
+                            genreViewModel.loadGenres()
+                        }
                     }
                     selectedPost = AnimePost(
                         channelId = item.channelId,
@@ -263,10 +265,12 @@ private fun AnimeApp(
             AnimeScreen.History -> HistoryScreen(
                 historyList = historyList,
                 onItemClick = { item ->
-                    if (SourcePreferences.currentSource.value != item.sourceType) {
-                        SourcePreferences.setSource(context, item.sourceType)
-                        homeViewModel.refresh()
-                        genreViewModel.loadGenres()
+                    item.sourceType?.let { src ->
+                        if (SourcePreferences.currentSource.value != src) {
+                            SourcePreferences.setSource(context, src)
+                            homeViewModel.refresh()
+                            genreViewModel.loadGenres()
+                        }
                     }
                     selectedPost = AnimePost(
                         channelId = item.channelId,
