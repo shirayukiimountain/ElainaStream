@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SearchOff
@@ -50,6 +51,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.shira.anime.domain.model.AnimeCollectionItem
@@ -93,6 +95,8 @@ fun SearchScreen(
     onSearch: () -> Unit,
     onLoadMore: () -> Unit,
     onItemClick: (AnimeCollectionItem) -> Unit,
+    onRemoveRecentSearch: (String) -> Unit = {},
+    onClearRecentSearches: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -276,9 +280,12 @@ fun SearchScreen(
             // 3. Pre-Search / Empty State (Suggestions & Trending)
             !state.hasSearched -> {
                 SearchSuggestionsContent(
+                    recentSearches = state.recentSearches,
                     onKeywordSelected = { keyword ->
                         submitSearch(keyword)
-                    }
+                    },
+                    onRemoveRecentSearch = onRemoveRecentSearch,
+                    onClearRecentSearches = onClearRecentSearches
                 )
             }
 
@@ -296,9 +303,12 @@ fun SearchScreen(
                     )
 
                     SearchSuggestionsContent(
+                        recentSearches = state.recentSearches,
                         onKeywordSelected = { keyword ->
                             submitSearch(keyword)
                         },
+                        onRemoveRecentSearch = onRemoveRecentSearch,
+                        onClearRecentSearches = onClearRecentSearches,
                         showTips = false,
                         modifier = Modifier.padding(bottom = 100.dp)
                     )
@@ -399,7 +409,10 @@ fun SearchScreen(
 
 @Composable
 private fun SearchSuggestionsContent(
+    recentSearches: List<String> = emptyList(),
     onKeywordSelected: (String) -> Unit,
+    onRemoveRecentSearch: (String) -> Unit = {},
+    onClearRecentSearches: () -> Unit = {},
     showTips: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -416,6 +429,61 @@ private fun SearchSuggestionsContent(
         contentPadding = PaddingValues(vertical = 8.dp, horizontal = 2.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
+        // Section: Recent Searches
+        if (recentSearches.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.History,
+                                contentDescription = null,
+                                tint = accentSoft,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "PENCARIAN TERAKHIR",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = textSecondary,
+                                letterSpacing = 0.8.sp
+                            )
+                        }
+
+                        Text(
+                            text = "Hapus Semua",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textMuted,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clickable { onClearRecentSearches() }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) {
+                        items(recentSearches) { query ->
+                            RecentSearchChip(
+                                text = query,
+                                onClick = { onKeywordSelected(query) },
+                                onDelete = { onRemoveRecentSearch(query) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Section: Trending / Popular Searches
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -609,6 +677,67 @@ private fun SuggestionChip(
                 color = textPrimary,
                 fontSize = 12.5.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun RecentSearchChip(
+    text: String,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val chipBg = Color(0xFF161826)
+    val chipBorder = Color(0xFF24273A)
+    val textPrimary = Color(0xFFF1F5F9)
+    val textMuted = Color(0xFF94A3B8)
+    val accentSoft = Color(0xFF818CF8)
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = chipBg,
+        border = BorderStroke(1.dp, chipBorder),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.History,
+                contentDescription = null,
+                tint = accentSoft,
+                modifier = Modifier.size(15.dp)
+            )
+
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = textPrimary,
+                fontSize = 12.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Surface(
+                onClick = onDelete,
+                shape = CircleShape,
+                color = Color.White.copy(alpha = 0.06f),
+                modifier = Modifier.size(22.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Hapus riwayat",
+                        tint = textMuted,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
         }
     }
 }

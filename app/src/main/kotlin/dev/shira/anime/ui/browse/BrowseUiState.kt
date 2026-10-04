@@ -11,7 +11,8 @@ data class SearchUiState(
     val errorMessage: String? = null,
     val loadMoreErrorMessage: String? = null,
     val canLoadMore: Boolean = false,
-    val hasSearched: Boolean = false
+    val hasSearched: Boolean = false,
+    val recentSearches: List<String> = emptyList()
 )
 
 data class GenreUiState(

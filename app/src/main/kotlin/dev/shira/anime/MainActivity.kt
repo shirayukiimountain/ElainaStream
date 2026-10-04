@@ -32,6 +32,7 @@ import androidx.lifecycle.lifecycleScope
 import coil.imageLoader
 import dev.shira.anime.data.local.ContinueWatchingItem
 import dev.shira.anime.data.local.PlaybackProgressStore
+import dev.shira.anime.data.local.SearchHistoryStore
 import dev.shira.anime.data.local.SourcePreferences
 import dev.shira.anime.data.remote.AppConfigManager
 import dev.shira.anime.domain.model.AnimeCollectionItem
@@ -60,7 +61,9 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels { HomeViewModel.Factory() }
     private val detailViewModel: DetailViewModel by viewModels { DetailViewModel.Factory() }
-    private val searchViewModel: SearchViewModel by viewModels { SearchViewModel.Factory() }
+    private val searchViewModel: SearchViewModel by viewModels {
+        SearchViewModel.Factory(searchHistoryStore = SearchHistoryStore(applicationContext))
+    }
     private val genreViewModel: GenreViewModel by viewModels { GenreViewModel.Factory() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -250,6 +253,8 @@ private fun AnimeApp(
                 onQueryChanged = searchViewModel::onQueryChanged,
                 onSearch = searchViewModel::search,
                 onLoadMore = searchViewModel::loadNextPage,
+                onRemoveRecentSearch = searchViewModel::removeRecentSearch,
+                onClearRecentSearches = searchViewModel::clearRecentSearches,
                 onItemClick = { item ->
                     selectedPost = item.toFallbackPost()
                     detailViewModel.load(
