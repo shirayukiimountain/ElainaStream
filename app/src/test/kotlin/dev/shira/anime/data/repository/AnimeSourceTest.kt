@@ -17,9 +17,9 @@ class AnimeSourceTest {
 
     @Test
     fun testAnimeSourceDisplayName() {
-        assertEquals("AnimeX Cloud", AnimeSourceType.ANIMEX.displayName)
-        assertEquals("Animeku Fast CDN", AnimeSourceType.ANIMEKU.displayName)
-        assertEquals("AnimeIN Direct", AnimeSourceType.ANIMEIN.displayName)
+        assertEquals("Anime X Nonton", AnimeSourceType.ANIMEX.displayName)
+        assertEquals("Animeku", AnimeSourceType.ANIMEKU.displayName)
+        assertEquals("AnimeIN", AnimeSourceType.ANIMEIN.displayName)
     }
 
     @Test
