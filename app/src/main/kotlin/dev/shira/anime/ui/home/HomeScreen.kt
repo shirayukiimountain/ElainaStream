@@ -195,7 +195,12 @@ fun HomeScreen(
 
                     items(
                         items = popularPosts.chunked(POPULAR_GRID_COLUMNS),
-                        key = { row -> row.firstOrNull()?.channelId ?: row.hashCode() }
+                        key = { row ->
+                            row.joinToString("-") { post ->
+                                val id = if (post.channelId != 0) post.channelId else post.categoryId
+                                "${id}_${post.title}"
+                            }
+                        }
                     ) { rowPosts ->
                         PopularTodayRow(
                             posts = rowPosts,
@@ -708,9 +713,10 @@ private fun PopularPosterCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isVisible by remember(post.channelId) { mutableStateOf(false) }
+    val cardKey = if (post.channelId != 0) post.channelId else post.categoryId
+    var isVisible by remember(cardKey) { mutableStateOf(false) }
 
-    LaunchedEffect(post.channelId) {
+    LaunchedEffect(cardKey) {
         isVisible = true
     }
 

@@ -238,7 +238,7 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(historyList, key = { it.channelId }) { item ->
+                items(historyList, key = { "${it.sourceType?.id.orEmpty()}_${it.categoryId}_${it.channelId}" }) { item ->
                     HistoryCard(
                         item = item,
                         onClick = { onItemClick(item) },

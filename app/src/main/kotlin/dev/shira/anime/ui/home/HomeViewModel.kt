@@ -62,7 +62,9 @@ class HomeViewModel(
                 repository.getLatestPosts(page = nextPage, count = PAGE_SIZE)
             }.onSuccess { newPosts ->
                 currentPage = nextPage
-                val mergedPosts = (_homeState.value.posts + newPosts).distinctBy { it.channelId }
+                val mergedPosts = (_homeState.value.posts + newPosts).distinctBy {
+                    if (it.channelId != 0) it.channelId else it.categoryId
+                }
                 _homeState.value = _homeState.value.copy(
                     posts = mergedPosts,
                     isLoadingMore = false,
