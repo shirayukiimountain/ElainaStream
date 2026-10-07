@@ -13,7 +13,7 @@ enum class AnimeSourceType(
 ) {
     ANIMEX(
         id = "animex",
-        displayName = "AnimeX Cloud",
+        displayName = "Anime X Nonton",
         tagLine = "Koleksi Anime Lengkap & Update Cepat",
         serverBadge = "Server 1",
         features = listOf("Sub Indo", "Multi-Res"),
@@ -21,7 +21,7 @@ enum class AnimeSourceType(
     ),
     ANIMEKU(
         id = "animeku",
-        displayName = "Animeku Fast CDN",
+        displayName = "Animeku",
         tagLine = "Streaming Ultra Cepat • 1080p Direct",
         serverBadge = "Server 2",
         features = listOf("1080p FHD", "Sub Indo & Eng"),
@@ -29,7 +29,7 @@ enum class AnimeSourceType(
     ),
     ANIMEIN(
         id = "animein",
-        displayName = "AnimeIN Direct",
+        displayName = "AnimeIN",
         tagLine = "Multi-Server • Direct MP4 1080p",
         serverBadge = "Server 3",
         features = listOf("1080p Direct", "Multi-Res", "Sub Indo"),
