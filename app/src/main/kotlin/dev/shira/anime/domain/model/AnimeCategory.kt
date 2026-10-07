@@ -8,7 +8,8 @@ data class AnimeCategory(
     val genre: String,
     val year: String,
     val rating: String,
-    val episodes: List<AnimeEpisode>
+    val episodes: List<AnimeEpisode>,
+    val description: String = ""
 )
 
 data class AnimeEpisode(

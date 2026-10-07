@@ -47,7 +47,9 @@ data class AnimeDetailUiModel(
         get() = episode?.viewCount?.takeIf { it.isNotBlank() } ?: "0"
 
     val description: String
-        get() = episode?.descriptionHtml?.takeIf { it.isNotBlank() } ?: "Deskripsi belum tersedia."
+        get() = episode?.descriptionHtml?.takeIf { it.isNotBlank() }
+            ?: category?.description?.takeIf { it.isNotBlank() }
+            ?: "Deskripsi belum tersedia."
 
     val episodes: List<AnimeEpisode>
         get() = category?.episodes.orEmpty()

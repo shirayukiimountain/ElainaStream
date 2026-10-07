@@ -10,12 +10,14 @@ import dev.shira.anime.domain.model.Genre
 
 class AnimeRepository(
     private val animexSource: AnimeSource = AnimeXSource(),
-    private val animekuSource: AnimeSource = AnimekuSource()
+    private val animekuSource: AnimeSource = AnimekuSource(),
+    private val animeinSource: AnimeSource = AnimeinSource()
 ) {
     fun getActiveSource(): AnimeSource {
         return when (SourcePreferences.currentSource.value) {
             AnimeSourceType.ANIMEX -> animexSource
             AnimeSourceType.ANIMEKU -> animekuSource
+            AnimeSourceType.ANIMEIN -> animeinSource
         }
     }
 

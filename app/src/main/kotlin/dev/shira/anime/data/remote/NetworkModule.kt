@@ -75,6 +75,40 @@ object NetworkModule {
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
+    private val animeinHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            val originalRequest = chain.request()
+            val originalUrl = originalRequest.url
+            val urlBuilder = originalUrl.newBuilder()
+            if (originalUrl.queryParameter("id_user") == null) {
+                urlBuilder.addQueryParameter("id_user", AnimeinApiService.USER_ID)
+            }
+            if (originalUrl.queryParameter("key_client") == null) {
+                urlBuilder.addQueryParameter("key_client", AnimeinApiService.CLIENT_KEY)
+            }
+            if (originalUrl.queryParameter("apk_ver") == null) {
+                urlBuilder.addQueryParameter("apk_ver", AnimeinApiService.APK_VER)
+            }
+            val request = originalRequest.newBuilder()
+                .url(urlBuilder.build())
+                .header("Cache-Control", "max-age=0")
+                .header("Accept", "application/json")
+                .build()
+            chain.proceed(request)
+        }
+        .addInterceptor(loggingInterceptor)
+        .build()
+
+    private val animeinRetrofit = Retrofit.Builder()
+        .baseUrl(AnimeinApiService.BASE_URL)
+        .client(animeinHttpClient)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+
     val animeApiService: AnimeApiService = animexRetrofit.create(AnimeApiService::class.java)
     val animekuApiService: AnimekuApiService = animekuRetrofit.create(AnimekuApiService::class.java)
+    val animeinApiService: AnimeinApiService = animeinRetrofit.create(AnimeinApiService::class.java)
 }

@@ -26,6 +26,14 @@ enum class AnimeSourceType(
         serverBadge = "Server 2",
         features = listOf("1080p FHD", "Sub Indo & Eng"),
         imageResId = R.drawable.elaina_2
+    ),
+    ANIMEIN(
+        id = "animein",
+        displayName = "AnimeIN Direct",
+        tagLine = "Multi-Server • Direct MP4 1080p",
+        serverBadge = "Server 3",
+        features = listOf("1080p Direct", "Multi-Res", "Sub Indo"),
+        imageResId = R.drawable.elaina_3
     );
 
     companion object {

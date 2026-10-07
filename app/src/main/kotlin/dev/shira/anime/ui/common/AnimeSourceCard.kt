@@ -59,6 +59,7 @@ fun AnimeSourceCard(
         when (source) {
             AnimeSourceType.ANIMEX -> listOf(R.drawable.elaina, R.drawable.elaina_3).random()
             AnimeSourceType.ANIMEKU -> listOf(R.drawable.elaina_2, R.drawable.elaina_4).random()
+            AnimeSourceType.ANIMEIN -> listOf(R.drawable.elaina_3, R.drawable.elaina).random()
         }
     }
 
